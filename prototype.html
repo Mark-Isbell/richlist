@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Rich List</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f7fafc;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 2rem 2.5rem;
+      margin-top: 3rem;
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 0.5rem;
+      color: #3b3b3b;
+      letter-spacing: 1px;
+    }
+    .network {
+      font-size: 1.1rem;
+      color: #6c63ff;
+      margin-bottom: 1.5rem;
+      font-weight: 500;
+    }
+    .user-balance {
+      font-size: 1.3rem;
+      margin-bottom: 1.5rem;
+      color: #222;
+      background: #f0f4ff;
+      border-radius: 8px;
+      padding: 0.7rem 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+    }
+    .rank {
+      font-size: 1.1rem;
+      margin-bottom: 2rem;
+      color: #4caf50;
+      font-weight: bold;
+      background: #e8f5e9;
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .percentile-list {
+      width: 100%;
+      margin-bottom: 2rem;
+    }
+    .percentile-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.7rem 0.5rem;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 1.05rem;
+    }
+    .percentile-row:last-child {
+      border-bottom: none;
+    }
+    .percentile-label {
+      font-weight: 500;
+      color: #444;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .percentile-amount {
+      font-family: monospace;
+      color: #6c63ff;
+      font-size: 1.1rem;
+    }
+    .buy-btn {
+      margin-top: 1.5rem;
+      width: 100%;
+      padding: 1rem;
+      font-size: 1.2rem;
+      background: linear-gradient(90deg, #6c63ff 60%, #00c6fb 100%);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: bold;
+      letter-spacing: 1px;
+      transition: background 0.2s;
+    }
+    .buy-btn:hover {
+      background: linear-gradient(90deg, #00c6fb 60%, #6c63ff 100%);
+    }
+    .icon {
+      font-size: 1.3em;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Rich List</h1>
+    <div class="network">Network: <span id="networkName">Xahau</span></div>
+    <div class="user-balance">
+      <span class="icon">👛</span>
+      Your Balance: <span id="userBalance">51,000</span> XAH
+    </div>
+    <div class="rank" id="userRank">
+      <span class="icon">🏆</span>
+      You are in the <span id="userPercentile">Top 1%</span> of holders!
+    </div>
+    <div class="percentile-list" id="percentileList">
+      <!-- Percentile rows will be injected here -->
+    </div>
+    <button class="buy-btn" onclick="alert('Redirect to buy page (not implemented)')">
+      🛒 Buy More XAH
+    </button>
+  </div>
+  <script>
+    // Spoofed data for prototype
+    const percentiles = [
+      { label: 'Top 0.1%', amount: 200000 },
+      { label: 'Top 1%', amount: 50000 },
+      { label: 'Top 5%', amount: 15000 },
+      { label: 'Top 10%', amount: 7000 },
+      { label: 'Top 25%', amount: 2000 },
+      { label: 'Top 50%', amount: 500 },
+    ];
+    const userBalance = 51000;
+
+    // Find user's percentile
+    function getUserPercentile(balance, percentiles) {
+      for (let i = 0; i < percentiles.length; i++) {
+        if (balance >= percentiles[i].amount) {
+          return percentiles[i].label;
+        }
+      }
+      return 'Below Top 50%';
+    }
+
+    // Render percentile list
+    function renderPercentileList() {
+      const list = document.getElementById('percentileList');
+      percentiles.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'percentile-row';
+        row.innerHTML = `
+          <span class="percentile-label">${p.label}</span>
+          <span class="percentile-amount">${p.amount.toLocaleString()} XAH</span>
+        `;
+        list.appendChild(row);
+      });
+    }
+
+    // Set user info
+    document.getElementById('userBalance').textContent = userBalance.toLocaleString();
+    document.getElementById('userPercentile').textContent = getUserPercentile(userBalance, percentiles);
+
+    renderPercentileList();
+  </script>
+</body>
+</html>
