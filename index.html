@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rich List</title>
+
+  <!-- xApp theme loader (injects correct bootstrap theme based on ?xAppStyle=) -->
+  <script>
+    (function () {
+      var theme = ((new URLSearchParams(document.location.href)).get('xAppStyle') || 'light').toLowerCase();
+      var link = document.createElement('link');
+      link.href = 'https://xumm.app/assets/themes/xapp/xumm-' + theme + '/bootstrap.min.css';
+      link.rel = 'stylesheet';
+      link.type = 'text/css';
+      link.onload = function () { console.log('xApp theme loaded:', link.href); };
+      link.onerror = function () { console.warn('Failed to load xApp theme:', link.href); };
+      document.head.appendChild(link);
+    })();
+  </script>
+
+  <!-- Optional SDK (you had this) -->
+  <script src="https://xumm.app/assets/cdn/xumm.min.js"></script>
+
+  <!-- Your overrides (kept AFTER theme so they only tweak what you want) -->
+  <style>
+    /* avoid clobbering Bootstrap by using rl-card for custom card tweaks */
+    .rl-card {
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+      background: #fff;
+    }
+
+    /* keep body background + safe font fallback */
+    body {
+      background: linear-gradient(180deg,#f0f4ff 0%,#ffffff 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #333;
+    }
+
+    /* keep your progress bar visuals */
+    .progress-bar-custom { background:#e9ecef; border-radius:12px; overflow:hidden; height:20px; margin-top:1rem; }
+    .progress-fill { height:100%; background:linear-gradient(90deg,#4c6ef5,#63e6be); width:0%; transition:width .4s ease; }
+
+    /* buy button flavor kept, but rely on Bootstrap .btn classes for base styling */
+    .buy-btn { border-radius:12px; padding:1rem; font-size:1.1rem; }
+
+    .wallet-info { display:flex; align-items:center; gap:.5rem; font-size:1.05rem; }
+
+    /* header tweaks (Bootstrap will still provide colors if theme loaded) */
+    header { width:100%; text-align:center; padding:1rem; border-bottom-left-radius:1rem; border-bottom-right-radius:1rem; }
+  </style>
+</head>
+<body>
+  <header class="bg-primary text-white">
+    <h1 class="m-0">💎 Rich List</h1>
+  </header>
+
+  <main class="container py-4" style="max-width:600px;">
+    <!-- Login / Logout -->
+    <div id="loginSection" class="mb-3 text-center">
+      <!-- add Bootstrap classes so theme styles buttons -->
+      <button id="loginBtn" class="btn btn-primary btn-lg w-100">Login with Xaman Wallet</button>
+    </div>
+
+    <div id="userSection" style="display:none;" class="mb-3 text-center">
+      <p id="walletDisplay" class="mb-2"></p>
+      <button id="logoutBtn" class="btn btn-outline-secondary w-50">Logout</button>
+    </div>
+
+    <div id="qrCode" class="mx-auto" style="width:200px;height:200px;display:none;line-height:200px;border:1px solid #ccc;color:#666"></div>
+
+    <!-- Wallet & Rich List UI: use Bootstrap .card + your rl-card tweaks -->
+    <div class="card rl-card" id="walletCard" style="display:none;">
+      <h2 class="h5">Your Wallet</h2>
+      <p class="wallet-info">💰 <strong>Balance:</strong> <span id="userBalance"></span> coins</p>
+      <p class="wallet-info">🏆 <strong>Your Rank:</strong> Top <span id="userRank"></span> of holders</p>
+
+      <div class="progress-bar-custom">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-label" id="progressLabel">Progress to next tier</div>
+    </div>
+
+    <div class="card rl-card" id="thresholdCard" style="display:none;">
+      <h3 class="h6">Rich List Thresholds 📊</h3>
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Percentile</th><th>Coins Required</th></tr></thead>
+        <tbody id="thresholdTable"></tbody>
+      </table>
+    </div>
+
+    <button id="buyBtn" class="buy-btn btn btn-success w-100" style="display:none;">➕ Buy More</button>
+  </main>
+
+  <script>
+    // --- Threshold data ---
+    const thresholds = [
+      { percentile: "Top 50%", coins: 500 },
+      { percentile: "Top 25%", coins: 5_000 },
+      { percentile: "Top 10%", coins: 10_000 },
+      { percentile: "Top 5%", coins: 25_000 },
+      { percentile: "Top 1%", coins: 50_000 },
+      { percentile: "Top 0.1%", coins: 250_000 },
+    ];
+
+    // --- Session Management (simulated QR flow) ---
+    function showXamanQRCode() {
+      const qrContainer = document.getElementById('qrCode');
+      qrContainer.style.display = 'block';
+      qrContainer.textContent = "Scan QR with Xaman Wallet...";
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            walletAddress: "XAMAN1234567890",
+            displayName: "Test User",
+            balance: 51777
+          });
+        }, 1500);
+      });
+    }
+
+    async function login() {
+      const walletData = await showXamanQRCode();
+      localStorage.setItem('richListSession', JSON.stringify(walletData));
+      updateUI();
+    }
+
+    function logout() {
+      localStorage.removeItem('richListSession');
+      updateUI();
+    }
+
+    // --- Update UI ---
+    function updateUI() {
+      const session = JSON.parse(localStorage.getItem('richListSession'));
+      const loginSection = document.getElementById('loginSection');
+      const userSection = document.getElementById('userSection');
+      const walletDisplay = document.getElementById('walletDisplay');
+      const qrCode = document.getElementById('qrCode');
+
+      const walletCard = document.getElementById('walletCard');
+      const thresholdCard = document.getElementById('thresholdCard');
+      const buyBtn = document.getElementById('buyBtn');
+
+      if (session) {
+        loginSection.style.display = 'none';
+        userSection.style.display = 'block';
+        walletDisplay.textContent = `Logged in as: ${session.displayName} (${session.walletAddress})`;
+        qrCode.style.display = 'none';
+        walletCard.style.display = 'block';
+        thresholdCard.style.display = 'block';
+        buyBtn.style.display = 'block';
+        window.userBalance = session.balance || 0;
+        renderRichList();
+      } else {
+        loginSection.style.display = 'block';
+        userSection.style.display = 'none';
+        qrCode.style.display = 'none';
+        walletCard.style.display = 'none';
+        thresholdCard.style.display = 'none';
+        buyBtn.style.display = 'none';
+      }
+    }
+
+    // --- Rich List Rendering ---
+    function renderRichList() {
+      const balanceEl = document.getElementById("userBalance");
+      const rankEl = document.getElementById("userRank");
+      const tbody = document.getElementById("thresholdTable");
+      const progressFill = document.getElementById("progressFill");
+      const progressLabel = document.getElementById("progressLabel");
+
+      balanceEl.textContent = window.userBalance.toLocaleString();
+
+      let userRank = "100%+";
+      let nextThreshold = null;
+      for (let i = thresholds.length - 1; i >= 0; i--) {
+        if (window.userBalance >= thresholds[i].coins) {
+          userRank = thresholds[i].percentile;
+          nextThreshold = thresholds[i + 1] || null;
+          break;
+        }
+      }
+      rankEl.textContent = userRank;
+
+      if (nextThreshold) {
+        const currentTier = thresholds.find(t => t.percentile === userRank);
+        const minCoins = currentTier.coins;
+        const maxCoins = nextThreshold.coins;
+        const progress = Math.min(100, ((window.userBalance - minCoins) / (maxCoins - minCoins)) * 100);
+        progressFill.style.width = progress + "%";
+        progressLabel.textContent = `🚀 ${maxCoins.toLocaleString()} coins needed for ${nextThreshold.percentile}`;
+      } else {
+        progressFill.style.width = "100%";
+        progressLabel.textContent = "🌟 You are at the very top!";
+      }
+
+      tbody.innerHTML = "";
+      thresholds.forEach(t => {
+        const row = document.createElement("tr");
+        row.innerHTML = `<td>${t.percentile}</td><td>${t.coins.toLocaleString()}</td>`;
+        tbody.appendChild(row);
+      });
+    }
+
+    // --- Buy more button ---
+    document.getElementById("buyBtn").addEventListener("click", () => {
+      const extra = prompt("How many more coins would you like to buy?");
+      const num = parseInt(extra, 10);
+      if (!isNaN(num) && num > 0) {
+        window.userBalance += num;
+        const session = JSON.parse(localStorage.getItem('richListSession'));
+        session.balance = window.userBalance;
+        localStorage.setItem('richListSession', JSON.stringify(session));
+        renderRichList();
+        alert(`✅ Purchase successful! Your new balance is ${window.userBalance.toLocaleString()} coins.`);
+      } else {
+        alert("⚠️ Please enter a valid number.");
+      }
+    });
+
+    // --- Event listeners ---
+    document.getElementById('loginBtn').addEventListener('click', login);
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+
+    // --- Initialize ---
+    updateUI();
+  </script>
+</body>
+</html>
