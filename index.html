@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width">
-  <title>Xaman xAppToken Test</title>
+  <title>Xaman xApp Boilerplate</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -29,211 +29,177 @@
     .info { color: #0288d1; font-style: italic; }
     input { margin: 10px; padding: 5px; width: 80%; }
     button { padding: 5px 10px; }
-    pre { text-align: left; background: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 300px; overflow: auto; }
+    .info-box { text-align: left; background: #f5f5f5; padding: 10px; border-radius: 4px; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Xaman xAppToken Test</h1>
-    <p id="status">Initializing...</p>
-    <pre id="env-info">Environment: Checking...</pre>
+    <h1>Xaman xApp Boilerplate</h1>
+    <p id="status" class="info">Initializing...</p>
+    <div id="account-info" class="info-box"></div>
     <div>
-      <input id="manualToken" type="text" placeholder="Enter xAppToken (e.g., test123)" value="test123">
+      <input id="manualToken" type="text" placeholder="Enter xAppToken for testing" value="test123">
       <button onclick="testManualToken()">Test Manual xAppToken</button>
     </div>
   </div>
 
   <script src="https://xumm.app/assets/cdn/xumm.min.js"></script>
   <script>
-    // Log every step
-    console.log('1. Script started at:', new Date().toISOString());
-    console.log('2. URL:', window.location.href);
-    console.log('3. Query parameters:', window.location.search);
-    console.log('4. Browser:', {
-      userAgent: navigator.userAgent,
-      online: navigator.onLine
-    });
-    console.log('5. Xaman SDK script loaded:', typeof Xumm !== 'undefined');
+    // Initialize Xaman xApp boilerplate
+    console.log('1. Script started');
 
-    // Update status
+    // Update status message
     function updateStatus(message, isError = false, isInfo = false) {
-      console.log('6. Updating status:', message);
+      console.log('2. Status:', message);
       const statusElement = document.getElementById('status');
       statusElement.textContent = message;
       statusElement.className = isError ? 'error' : isInfo ? 'info' : 'success';
     }
 
-    // Update environment info
-    function updateEnvInfo(token, tokenDetails, ottData, sdkMethods) {
-      console.log('7. Updating environment info...');
-      const envInfo = {
-        URL: window.location.href,
-        Query: window.location.search || 'None',
-        Online: navigator.onLine ? 'Yes' : 'No',
-        UserAgent: navigator.userAgent,
-        SDKAvailable: typeof Xumm !== 'undefined' ? 'Yes' : 'No',
-        xAppToken: token ? token.substring(0, 10) + '...' : 'Not found',
-        TokenDetails: tokenDetails || 'None',
-        OTTData: ottData || 'None',
-        SDKMethods: sdkMethods || 'None'
-      };
-      document.getElementById('env-info').textContent = `Environment:\n${JSON.stringify(envInfo, null, 2)}`;
+    // Update account info display
+    function updateAccountInfo(rAddress, balance) {
+      console.log('3. Account info:', { rAddress, balance });
+      const infoElement = document.getElementById('account-info');
+      infoElement.innerHTML = `
+        <strong>Account Info:</strong><br>
+        ${rAddress ? `r-address: ${rAddress}<br>` : ''}
+        ${balance !== null ? `Balance: ${balance} XRP` : ''}
+      `;
     }
 
-    // Decode JWT payload
-    function decodeJwtPayload(token) {
-      console.log('8. Decoding JWT payload...');
-      try {
-        if (!token || token.split('.').length !== 3) {
-          console.log('9. Invalid JWT format:', token);
-          return { error: 'Invalid JWT format' };
-        }
-        const payload = token.split('.')[1];
-        const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
-        console.log('10. JWT payload decoded:', decoded);
-        return JSON.parse(decoded);
-      } catch (error) {
-        console.log('11. JWT decode failed:', {
-          message: error.message,
-          stack: error.stack
-        });
-        return { error: 'Failed to decode JWT: ' + error.message };
-      }
+    // Fetch wallet balance via XRPL WebSocket
+    function fetchBalance(rAddress) {
+      console.log('4. Fetching balance for:', rAddress);
+      return new Promise((resolve, reject) => {
+        const ws = new WebSocket('wss://xrpl.ws');
+        ws.onopen = () => {
+          console.log('5. WebSocket connected');
+          ws.send(JSON.stringify({
+            id: 1,
+            command: 'account_info',
+            account: rAddress,
+            ledger_index: 'validated'
+          }));
+        };
+        ws.onmessage = (event) => {
+          console.log('6. Balance response:', event.data);
+          const data = JSON.parse(event.data);
+          if (data.result && data.result.account_data) {
+            const balance = data.result.account_data.Balance / 1000000; // Convert drops to XRP
+            resolve(balance);
+          } else {
+            reject(new Error('Invalid balance data'));
+          }
+          ws.close();
+        };
+        ws.onerror = (error) => {
+          console.log('7. WebSocket error:', error);
+          reject(new Error('WebSocket error'));
+          ws.close();
+        };
+      });
     }
 
     // Check for xAppToken
-    console.log('12. Checking URL for xAppToken...');
+    console.log('8. Checking xAppToken...');
     let token = null;
     const url = new URL(window.location.href);
     token = url.searchParams.get('xAppToken');
-    console.log('13. xAppToken:', token ? token.substring(0, 10) + '...' : 'Not found');
-    const tokenDetails = decodeJwtPayload(token);
+    console.log('9. xAppToken:', token ? token.substring(0, 10) + '...' : 'Not found');
 
-    // Initialize environment display
-    updateStatus('Script running. Checking xAppToken...');
-    updateEnvInfo(token, tokenDetails, 'Not yet checked', 'Not yet initialized');
+    // Initialize environment
+    updateStatus('Authenticating...');
+    updateAccountInfo(null, null);
 
     // Initialize Xaman SDK
-    console.log('14. Initializing Xaman SDK...');
-    const apiKey = 'ed16b1ec-0a7a-4458-9c9c-eecfd9972955';
+    console.log('10. Initializing Xaman SDK...');
+    const apiKey = 'your-api-key-here';
     let xumm = null;
     try {
-      console.log('15. Creating Xumm instance...');
       xumm = new Xumm(apiKey);
-      console.log('16. SDK initialized with API key:', apiKey);
-      console.log('17. SDK user methods:', Object.keys(xumm.user || {}));
-      console.log('18. SDK environment methods:', Object.keys(xumm.environment || {}));
+      console.log('11. SDK initialized');
     } catch (error) {
-      console.log('19. SDK initialization failed:', {
-        message: error.message,
-        stack: error.stack
-      });
-      updateStatus('Error: SDK initialization failed. Check API key.', true);
-      updateEnvInfo(token, tokenDetails, 'SDK failed', 'SDK failed to initialize');
-    }
-
-    // Check OTT for JWT
-    let ottData = 'Not fetched';
-    if (xumm) {
-      console.log('20. Fetching OTT data...');
-      try {
-        xumm.environment.ott().then(ott => {
-          console.log('21. OTT data:', ott);
-          ottData = ott || 'No OTT data';
-          updateEnvInfo(token, tokenDetails, ottData, Object.keys(xumm.user || {}));
-        }).catch(error => {
-          console.log('22. OTT fetch failed:', {
-            message: error.message,
-            stack: error.stack
-          });
-          ottData = 'Failed: ' + error.message;
-          updateEnvInfo(token, tokenDetails, ottData, Object.keys(xumm.user || {}));
-        });
-      } catch (error) {
-        console.log('23. OTT call failed:', {
-          message: error.message,
-          stack: error.stack
-        });
-        ottData = 'Failed: ' + error.message;
-        updateEnvInfo(token, tokenDetails, ottData, Object.keys(xumm.user || {}));
-      }
+      console.log('12. SDK initialization failed:', error.message);
+      updateStatus('Error: SDK initialization failed', true);
+      updateAccountInfo(null, null);
     }
 
     // Manual xAppToken test
     function testManualToken() {
-      console.log('24. Manual xAppToken test started at:', new Date().toISOString());
+      console.log('13. Manual xAppToken test started');
       const manualToken = document.getElementById('manualToken').value;
-      console.log('25. Manual xAppToken:', manualToken ? manualToken.substring(0, 10) + '...' : 'Empty');
+      console.log('14. Manual xAppToken:', manualToken ? manualToken.substring(0, 10) + '...' : 'Empty');
       if (!manualToken) {
-        console.log('26. Manual xAppToken test failed: Input empty');
-        updateStatus('Error: Enter an xAppToken in the input field.', true);
+        console.log('15. Manual xAppToken test failed: Input empty');
+        updateStatus('Error: Enter an xAppToken', true);
         return;
       }
-      const manualTokenDetails = decodeJwtPayload(manualToken);
-      updateEnvInfo(manualToken, manualTokenDetails, ottData, xumm ? Object.keys(xumm.user || {}) : 'SDK not initialized');
       authenticateXaman(manualToken);
     }
 
-    // Authentication function
+    // Authentication and balance fetch
     function authenticateXaman(manualToken) {
-      console.log('27. Authentication started at:', new Date().toISOString());
-      console.log('28. Using xAppToken:', manualToken ? manualToken.substring(0, 10) + '...' : token ? token.substring(0, 10) + '...' : 'None');
+      console.log('16. Authentication started');
+      console.log('17. Using xAppToken:', manualToken ? manualToken.substring(0, 10) + '...' : token ? token.substring(0, 10) + '...' : 'None');
       
       const authToken = manualToken || token;
-      const authTokenDetails = manualToken ? decodeJwtPayload(manualToken) : tokenDetails;
       if (!authToken) {
-        console.log('29. No xAppToken available');
-        updateStatus('No xAppToken found. Launch from Xaman wallet/IDE or use manual input.', true);
-        updateEnvInfo(authToken, authTokenDetails, ottData, xumm ? Object.keys(xumm.user || {}) : 'SDK not initialized');
+        console.log('18. No xAppToken available');
+        updateStatus('Error: No xAppToken found. Launch from Xaman wallet/IDE or use manual input', true);
+        updateAccountInfo(null, null);
         return;
       }
 
       if (!xumm) {
-        console.log('30. SDK not initialized');
-        updateStatus('Error: SDK not initialized.', true);
-        updateEnvInfo(authToken, authTokenDetails, ottData, 'SDK not initialized');
+        console.log('19. SDK not initialized');
+        updateStatus('Error: SDK not initialized', true);
+        updateAccountInfo(null, null);
         return;
       }
 
-      console.log('31. Setting xAppToken in SDK...');
+      console.log('20. Setting xAppToken in SDK...');
       xumm.environment.jwt = authToken;
 
-      console.log('32. Fetching user data...');
+      console.log('21. Fetching r-address...');
       try {
-        // Try xumm.user.account as a method or property
         const accountPromise = typeof xumm.user.account === 'function' ? xumm.user.account() : Promise.resolve(xumm.user.account);
         accountPromise.then(userData => {
-          console.log('33. User data:', userData);
-          if (!userData || (!userData.account && typeof userData !== 'string')) {
-            console.log('34. Invalid user data:', userData);
-            updateStatus('Error: No r-address found.', true);
-            updateEnvInfo(authToken, authTokenDetails, ottData, Object.keys(xumm.user || {}));
+          console.log('22. User data:', userData);
+          const rAddress = typeof userData === 'string' ? userData : userData?.account;
+          if (!rAddress) {
+            console.log('23. Invalid user data:', userData);
+            updateStatus('Error: No r-address found', true);
+            updateAccountInfo(null, null);
             return;
           }
-          const rAddress = typeof userData === 'string' ? userData : userData.account;
-          console.log('35. r-address:', rAddress);
-          updateStatus(`Authenticated! Your r-address: ${rAddress}`);
-          updateEnvInfo(authToken, authTokenDetails, ottData, Object.keys(xumm.user || {}));
-        }).catch(error => {
-          console.log('36. User data fetch failed:', {
-            message: error.message,
-            stack: error.stack
+          console.log('24. r-address:', rAddress);
+          updateStatus('Authenticated!');
+          updateAccountInfo(rAddress, 'Fetching...');
+
+          // Fetch balance
+          fetchBalance(rAddress).then(balance => {
+            console.log('25. Balance:', balance, 'XRP');
+            updateStatus(`Authenticated! r-address: ${rAddress}, Balance: ${balance} XRP`);
+            updateAccountInfo(rAddress, balance);
+          }).catch(error => {
+            console.log('26. Balance fetch failed:', error.message);
+            updateStatus(`Authenticated! r-address: ${rAddress}, Balance error: ${error.message}`);
+            updateAccountInfo(rAddress, 'Error');
           });
+        }).catch(error => {
+          console.log('27. User data fetch failed:', error.message);
           updateStatus(`Error: Failed to fetch user data (${error.message})`, true);
-          updateEnvInfo(authToken, authTokenDetails, ottData, Object.keys(xumm.user || {}));
+          updateAccountInfo(null, null);
         });
       } catch (error) {
-        console.log('37. SDK account call failed:', {
-          message: error.message,
-          stack: error.stack
-        });
+        console.log('28. SDK account call failed:', error.message);
         updateStatus(`Error: SDK account call failed (${error.message})`, true);
-        updateEnvInfo(authToken, authTokenDetails, ottData, Object.keys(xumm.user || {}));
+        updateAccountInfo(null, null);
       }
     }
 
     // Start authentication
-    console.log('38. Starting initial authentication...');
+    console.log('29. Starting authentication...');
     authenticateXaman();
   </script>
 </body>
