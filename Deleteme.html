@@ -1,0 +1,110 @@
+<!-- Include the Xumm SDK (browser version) -->
+<script src="https://xumm.app/assets/cdn/xumm.min.js"></script>
+
+<script>
+  // --- Initialize the Xumm SDK in xApp mode ---
+  // Use XummSdkJwt if needed; here we assume the SDK picks up OTT token from URL, etc.
+  // Adjust constructor as needed (public key, etc.)
+  const xumm = new Xumm(/* yourPublicApiKeyHere */);
+
+  async function showXamanQRCode() {
+    const qrContainer = document.getElementById('qrCode');
+    qrContainer.style.display = 'block';
+    qrContainer.textContent = "Loading QR…";
+
+    try {
+      // Create a “sign-in / login” payload. This is typically a dummy transaction
+      // or "authorization" request. Adjust txjson / options as needed by your protocol.
+      const createPayload = {
+        txjson: {
+          // This is a dummy Payment transaction with zero amount, or you could use any non-critical tx
+          TransactionType: "SignIn",  // or another custom type if Xumm allows (if not, use a Payment to yourself)
+          // You might need to use a valid tx type — e.g. Payment to yourself with zero or minimal amount
+          Destination: "rYourXRPAddressHere",
+          Amount: "0"
+        },
+        options: {
+          return_url: {
+            app: window.location.origin + window.location.pathname + "?xAppCallback=true",
+            web: window.location.origin + window.location.pathname + "?xAppCallback=true&uuid={uuid}"
+          },
+          // optionally: force_network: "MAINNET" or testnet etc
+        },
+        custom_meta: {
+          identifier: "login-" + Date.now(),
+          instruction: "Authorize login to Rich List"
+        }
+      };
+
+      // Create the payload
+      const created = await xumm.payload.create(createPayload);
+      console.log("Payload created:", created);
+
+      // Open the sign request (this will show QR or deep-link depending on client)
+      await xumm.xapp.openSignRequest(created);
+
+      // Subscribe for resolution (user action)
+      const subscription = await xumm.payload.subscribe(created, (event) => {
+        // Event may contain partial status updates (opened, expired, etc.)
+        console.log("Subscription event:", event);
+
+        // If resolved (user signed or rejected), return back a signal to stop subscription
+        if (event.data?.resolved) {
+          return event.data;
+        }
+      });
+
+      const resolved = await subscription.resolved;
+      console.log("Payload resolved:", resolved);
+
+      // Once resolved, fetch the full payload result
+      const full = await xumm.payload.get(created);
+      console.log("Full payload result:", full);
+
+      // Now interpret the result: if signed, extract user token, wallet address, etc.
+      if (full && full.response && full.response.signed) {
+        // Example: full contains `response.account` or `response.tx_blob`, etc.
+        const walletAddress = full.response.account || full.response.signer;  // adjust based on actual fields
+        const userToken = full.response.user_token; // if included in your payload's response
+        // You may also persist the payload UUID or user token to call future requests
+
+        qrContainer.style.display = 'none';
+
+        // Return an object with whatever you need for the session
+        return {
+          walletAddress,
+          userToken,
+          // Optionally you can call an XRPL API to fetch balance, etc.
+        };
+      } else {
+        qrContainer.textContent = "Sign-in cancelled or failed.";
+        throw new Error("User did not sign in");
+      }
+
+    } catch (err) {
+      console.error("Error in login via Xumm:", err);
+      qrContainer.textContent = "Error during login. See console.";
+      throw err;
+    }
+  }
+
+  async function login() {
+    try {
+      const walletData = await showXamanQRCode();
+      // Example walletData: { walletAddress, userToken }
+      localStorage.setItem('richListSession', JSON.stringify(walletData));
+      updateUI();
+    } catch (e) {
+      // login failed or canceled
+      console.warn("Login was not successful:", e);
+    }
+  }
+
+  // Logout stays the same
+  function logout() {
+    localStorage.removeItem('richListSession');
+    updateUI();
+  }
+
+  // Rest of your code (updateUI, renderRichList, buy button, etc.) remains the same
+</script>

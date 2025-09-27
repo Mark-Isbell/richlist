@@ -1,233 +1,240 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Rich List</title>
-
-  <!-- xApp theme loader (injects correct bootstrap theme based on ?xAppStyle=) -->
-  <script>
-    (function () {
-      var theme = ((new URLSearchParams(document.location.href)).get('xAppStyle') || 'light').toLowerCase();
-      var link = document.createElement('link');
-      link.href = 'https://xumm.app/assets/themes/xapp/xumm-' + theme + '/bootstrap.min.css';
-      link.rel = 'stylesheet';
-      link.type = 'text/css';
-      link.onload = function () { console.log('xApp theme loaded:', link.href); };
-      link.onerror = function () { console.warn('Failed to load xApp theme:', link.href); };
-      document.head.appendChild(link);
-    })();
-  </script>
-
-  <!-- Optional SDK (you had this) -->
-  <script src="https://xumm.app/assets/cdn/xumm.min.js"></script>
-
-  <!-- Your overrides (kept AFTER theme so they only tweak what you want) -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width">
+  <title>Xaman xAppToken Test</title>
   <style>
-    /* avoid clobbering Bootstrap by using rl-card for custom card tweaks */
-    .rl-card {
-      border-radius: 16px;
-      padding: 1.5rem;
-      margin-bottom: 1.25rem;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-      background: #fff;
-    }
-
-    /* keep body background + safe font fallback */
     body {
-      background: linear-gradient(180deg,#f0f4ff 0%,#ffffff 100%);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background-color: #f0f0f0;
       color: #333;
     }
-
-    /* keep your progress bar visuals */
-    .progress-bar-custom { background:#e9ecef; border-radius:12px; overflow:hidden; height:20px; margin-top:1rem; }
-    .progress-fill { height:100%; background:linear-gradient(90deg,#4c6ef5,#63e6be); width:0%; transition:width .4s ease; }
-
-    /* buy button flavor kept, but rely on Bootstrap .btn classes for base styling */
-    .buy-btn { border-radius:12px; padding:1rem; font-size:1.1rem; }
-
-    .wallet-info { display:flex; align-items:center; gap:.5rem; font-size:1.05rem; }
-
-    /* header tweaks (Bootstrap will still provide colors if theme loaded) */
-    header { width:100%; text-align:center; padding:1rem; border-bottom-left-radius:1rem; border-bottom-right-radius:1rem; }
+    .container {
+      text-align: center;
+      padding: 20px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background-color: #fff;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      max-width: 600px;
+    }
+    .error { color: #d32f2f; font-weight: bold; }
+    .success { color: #388e3c; font-weight: bold; }
+    .info { color: #0288d1; font-style: italic; }
+    input { margin: 10px; padding: 5px; width: 80%; }
+    button { padding: 5px 10px; }
+    pre { text-align: left; background: #f5f5f5; padding: 10px; border-radius: 4px; max-height: 300px; overflow: auto; }
   </style>
 </head>
 <body>
-  <header class="bg-primary text-white">
-    <h1 class="m-0">💎 Rich List</h1>
-  </header>
-
-  <main class="container py-4" style="max-width:600px;">
-    <!-- Login / Logout -->
-    <div id="loginSection" class="mb-3 text-center">
-      <!-- add Bootstrap classes so theme styles buttons -->
-      <button id="loginBtn" class="btn btn-primary btn-lg w-100">Login with Xaman Wallet</button>
+  <div class="container">
+    <h1>Xaman xAppToken Test</h1>
+    <p id="status">Initializing...</p>
+    <pre id="env-info">Environment: Checking...</pre>
+    <div>
+      <input id="manualToken" type="text" placeholder="Enter xAppToken (e.g., test123)" value="test123">
+      <button onclick="testManualToken()">Test Manual xAppToken</button>
     </div>
+  </div>
 
-    <div id="userSection" style="display:none;" class="mb-3 text-center">
-      <p id="walletDisplay" class="mb-2"></p>
-      <button id="logoutBtn" class="btn btn-outline-secondary w-50">Logout</button>
-    </div>
-
-    <div id="qrCode" class="mx-auto" style="width:200px;height:200px;display:none;line-height:200px;border:1px solid #ccc;color:#666"></div>
-
-    <!-- Wallet & Rich List UI: use Bootstrap .card + your rl-card tweaks -->
-    <div class="card rl-card" id="walletCard" style="display:none;">
-      <h2 class="h5">Your Wallet</h2>
-      <p class="wallet-info">💰 <strong>Balance:</strong> <span id="userBalance"></span> coins</p>
-      <p class="wallet-info">🏆 <strong>Your Rank:</strong> Top <span id="userRank"></span> of holders</p>
-
-      <div class="progress-bar-custom">
-        <div class="progress-fill" id="progressFill"></div>
-      </div>
-      <div class="progress-label" id="progressLabel">Progress to next tier</div>
-    </div>
-
-    <div class="card rl-card" id="thresholdCard" style="display:none;">
-      <h3 class="h6">Rich List Thresholds 📊</h3>
-      <table class="table table-sm mb-0">
-        <thead><tr><th>Percentile</th><th>Coins Required</th></tr></thead>
-        <tbody id="thresholdTable"></tbody>
-      </table>
-    </div>
-
-    <button id="buyBtn" class="buy-btn btn btn-success w-100" style="display:none;">➕ Buy More</button>
-  </main>
-
+  <script src="https://xumm.app/assets/cdn/xumm.min.js"></script>
   <script>
-    // --- Threshold data ---
-    const thresholds = [
-      { percentile: "Top 50%", coins: 500 },
-      { percentile: "Top 25%", coins: 5_000 },
-      { percentile: "Top 10%", coins: 10_000 },
-      { percentile: "Top 5%", coins: 25_000 },
-      { percentile: "Top 1%", coins: 50_000 },
-      { percentile: "Top 0.1%", coins: 250_000 },
-    ];
-
-    // --- Session Management (simulated QR flow) ---
-    function showXamanQRCode() {
-      const qrContainer = document.getElementById('qrCode');
-      qrContainer.style.display = 'block';
-      qrContainer.textContent = "Scan QR with Xaman Wallet...";
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          resolve({
-            walletAddress: "XAMAN1234567890",
-            displayName: "Test User",
-            balance: 51777
-          });
-        }, 1500);
-      });
-    }
-
-    async function login() {
-      const walletData = await showXamanQRCode();
-      localStorage.setItem('richListSession', JSON.stringify(walletData));
-      updateUI();
-    }
-
-    function logout() {
-      localStorage.removeItem('richListSession');
-      updateUI();
-    }
-
-    // --- Update UI ---
-    function updateUI() {
-      const session = JSON.parse(localStorage.getItem('richListSession'));
-      const loginSection = document.getElementById('loginSection');
-      const userSection = document.getElementById('userSection');
-      const walletDisplay = document.getElementById('walletDisplay');
-      const qrCode = document.getElementById('qrCode');
-
-      const walletCard = document.getElementById('walletCard');
-      const thresholdCard = document.getElementById('thresholdCard');
-      const buyBtn = document.getElementById('buyBtn');
-
-      if (session) {
-        loginSection.style.display = 'none';
-        userSection.style.display = 'block';
-        walletDisplay.textContent = `Logged in as: ${session.displayName} (${session.walletAddress})`;
-        qrCode.style.display = 'none';
-        walletCard.style.display = 'block';
-        thresholdCard.style.display = 'block';
-        buyBtn.style.display = 'block';
-        window.userBalance = session.balance || 0;
-        renderRichList();
-      } else {
-        loginSection.style.display = 'block';
-        userSection.style.display = 'none';
-        qrCode.style.display = 'none';
-        walletCard.style.display = 'none';
-        thresholdCard.style.display = 'none';
-        buyBtn.style.display = 'none';
-      }
-    }
-
-    // --- Rich List Rendering ---
-    function renderRichList() {
-      const balanceEl = document.getElementById("userBalance");
-      const rankEl = document.getElementById("userRank");
-      const tbody = document.getElementById("thresholdTable");
-      const progressFill = document.getElementById("progressFill");
-      const progressLabel = document.getElementById("progressLabel");
-
-      balanceEl.textContent = window.userBalance.toLocaleString();
-
-      let userRank = "100%+";
-      let nextThreshold = null;
-      for (let i = thresholds.length - 1; i >= 0; i--) {
-        if (window.userBalance >= thresholds[i].coins) {
-          userRank = thresholds[i].percentile;
-          nextThreshold = thresholds[i + 1] || null;
-          break;
-        }
-      }
-      rankEl.textContent = userRank;
-
-      if (nextThreshold) {
-        const currentTier = thresholds.find(t => t.percentile === userRank);
-        const minCoins = currentTier.coins;
-        const maxCoins = nextThreshold.coins;
-        const progress = Math.min(100, ((window.userBalance - minCoins) / (maxCoins - minCoins)) * 100);
-        progressFill.style.width = progress + "%";
-        progressLabel.textContent = `🚀 ${maxCoins.toLocaleString()} coins needed for ${nextThreshold.percentile}`;
-      } else {
-        progressFill.style.width = "100%";
-        progressLabel.textContent = "🌟 You are at the very top!";
-      }
-
-      tbody.innerHTML = "";
-      thresholds.forEach(t => {
-        const row = document.createElement("tr");
-        row.innerHTML = `<td>${t.percentile}</td><td>${t.coins.toLocaleString()}</td>`;
-        tbody.appendChild(row);
-      });
-    }
-
-    // --- Buy more button ---
-    document.getElementById("buyBtn").addEventListener("click", () => {
-      const extra = prompt("How many more coins would you like to buy?");
-      const num = parseInt(extra, 10);
-      if (!isNaN(num) && num > 0) {
-        window.userBalance += num;
-        const session = JSON.parse(localStorage.getItem('richListSession'));
-        session.balance = window.userBalance;
-        localStorage.setItem('richListSession', JSON.stringify(session));
-        renderRichList();
-        alert(`✅ Purchase successful! Your new balance is ${window.userBalance.toLocaleString()} coins.`);
-      } else {
-        alert("⚠️ Please enter a valid number.");
-      }
+    // Log every step
+    console.log('1. Script started at:', new Date().toISOString());
+    console.log('2. URL:', window.location.href);
+    console.log('3. Query parameters:', window.location.search);
+    console.log('4. Browser:', {
+      userAgent: navigator.userAgent,
+      online: navigator.onLine
     });
+    console.log('5. Xaman SDK script loaded:', typeof Xumm !== 'undefined');
 
-    // --- Event listeners ---
-    document.getElementById('loginBtn').addEventListener('click', login);
-    document.getElementById('logoutBtn').addEventListener('click', logout);
+    // Update status
+    function updateStatus(message, isError = false, isInfo = false) {
+      console.log('6. Updating status:', message);
+      const statusElement = document.getElementById('status');
+      statusElement.textContent = message;
+      statusElement.className = isError ? 'error' : isInfo ? 'info' : 'success';
+    }
 
-    // --- Initialize ---
-    updateUI();
+    // Update environment info
+    function updateEnvInfo(token, tokenDetails, ottData, sdkMethods) {
+      console.log('7. Updating environment info...');
+      const envInfo = {
+        URL: window.location.href,
+        Query: window.location.search || 'None',
+        Online: navigator.onLine ? 'Yes' : 'No',
+        UserAgent: navigator.userAgent,
+        SDKAvailable: typeof Xumm !== 'undefined' ? 'Yes' : 'No',
+        xAppToken: token ? token.substring(0, 10) + '...' : 'Not found',
+        TokenDetails: tokenDetails || 'None',
+        OTTData: ottData || 'None',
+        SDKMethods: sdkMethods || 'None'
+      };
+      document.getElementById('env-info').textContent = `Environment:\n${JSON.stringify(envInfo, null, 2)}`;
+    }
+
+    // Decode JWT payload
+    function decodeJwtPayload(token) {
+      console.log('8. Decoding JWT payload...');
+      try {
+        if (!token || token.split('.').length !== 3) {
+          console.log('9. Invalid JWT format:', token);
+          return { error: 'Invalid JWT format' };
+        }
+        const payload = token.split('.')[1];
+        const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+        console.log('10. JWT payload decoded:', decoded);
+        return JSON.parse(decoded);
+      } catch (error) {
+        console.log('11. JWT decode failed:', {
+          message: error.message,
+          stack: error.stack
+        });
+        return { error: 'Failed to decode JWT: ' + error.message };
+      }
+    }
+
+    // Check for xAppToken
+    console.log('12. Checking URL for xAppToken...');
+    let token = null;
+    const url = new URL(window.location.href);
+    token = url.searchParams.get('xAppToken');
+    console.log('13. xAppToken:', token ? token.substring(0, 10) + '...' : 'Not found');
+    const tokenDetails = decodeJwtPayload(token);
+
+    // Initialize environment display
+    updateStatus('Script running. Checking xAppToken...');
+    updateEnvInfo(token, tokenDetails, 'Not yet checked', 'Not yet initialized');
+
+    // Initialize Xaman SDK
+    console.log('14. Initializing Xaman SDK...');
+    const apiKey = 'ed16b1ec-0a7a-4458-9c9c-eecfd9972955';
+    let xumm = null;
+    try {
+      console.log('15. Creating Xumm instance...');
+      xumm = new Xumm(apiKey);
+      console.log('16. SDK initialized with API key:', apiKey);
+      console.log('17. SDK user methods:', Object.keys(xumm.user || {}));
+      console.log('18. SDK environment methods:', Object.keys(xumm.environment || {}));
+    } catch (error) {
+      console.log('19. SDK initialization failed:', {
+        message: error.message,
+        stack: error.stack
+      });
+      updateStatus('Error: SDK initialization failed. Check API key.', true);
+      updateEnvInfo(token, tokenDetails, 'SDK failed', 'SDK failed to initialize');
+    }
+
+    // Check OTT for JWT
+    let ottData = 'Not fetched';
+    if (xumm) {
+      console.log('20. Fetching OTT data...');
+      try {
+        xumm.environment.ott().then(ott => {
+          console.log('21. OTT data:', ott);
+          ottData = ott || 'No OTT data';
+          updateEnvInfo(token, tokenDetails, ottData, Object.keys(xumm.user || {}));
+        }).catch(error => {
+          console.log('22. OTT fetch failed:', {
+            message: error.message,
+            stack: error.stack
+          });
+          ottData = 'Failed: ' + error.message;
+          updateEnvInfo(token, tokenDetails, ottData, Object.keys(xumm.user || {}));
+        });
+      } catch (error) {
+        console.log('23. OTT call failed:', {
+          message: error.message,
+          stack: error.stack
+        });
+        ottData = 'Failed: ' + error.message;
+        updateEnvInfo(token, tokenDetails, ottData, Object.keys(xumm.user || {}));
+      }
+    }
+
+    // Manual xAppToken test
+    function testManualToken() {
+      console.log('24. Manual xAppToken test started at:', new Date().toISOString());
+      const manualToken = document.getElementById('manualToken').value;
+      console.log('25. Manual xAppToken:', manualToken ? manualToken.substring(0, 10) + '...' : 'Empty');
+      if (!manualToken) {
+        console.log('26. Manual xAppToken test failed: Input empty');
+        updateStatus('Error: Enter an xAppToken in the input field.', true);
+        return;
+      }
+      const manualTokenDetails = decodeJwtPayload(manualToken);
+      updateEnvInfo(manualToken, manualTokenDetails, ottData, xumm ? Object.keys(xumm.user || {}) : 'SDK not initialized');
+      authenticateXaman(manualToken);
+    }
+
+    // Authentication function
+    function authenticateXaman(manualToken) {
+      console.log('27. Authentication started at:', new Date().toISOString());
+      console.log('28. Using xAppToken:', manualToken ? manualToken.substring(0, 10) + '...' : token ? token.substring(0, 10) + '...' : 'None');
+      
+      const authToken = manualToken || token;
+      const authTokenDetails = manualToken ? decodeJwtPayload(manualToken) : tokenDetails;
+      if (!authToken) {
+        console.log('29. No xAppToken available');
+        updateStatus('No xAppToken found. Launch from Xaman wallet/IDE or use manual input.', true);
+        updateEnvInfo(authToken, authTokenDetails, ottData, xumm ? Object.keys(xumm.user || {}) : 'SDK not initialized');
+        return;
+      }
+
+      if (!xumm) {
+        console.log('30. SDK not initialized');
+        updateStatus('Error: SDK not initialized.', true);
+        updateEnvInfo(authToken, authTokenDetails, ottData, 'SDK not initialized');
+        return;
+      }
+
+      console.log('31. Setting xAppToken in SDK...');
+      xumm.environment.jwt = authToken;
+
+      console.log('32. Fetching user data...');
+      try {
+        // Try xumm.user.account as a method or property
+        const accountPromise = typeof xumm.user.account === 'function' ? xumm.user.account() : Promise.resolve(xumm.user.account);
+        accountPromise.then(userData => {
+          console.log('33. User data:', userData);
+          if (!userData || (!userData.account && typeof userData !== 'string')) {
+            console.log('34. Invalid user data:', userData);
+            updateStatus('Error: No r-address found.', true);
+            updateEnvInfo(authToken, authTokenDetails, ottData, Object.keys(xumm.user || {}));
+            return;
+          }
+          const rAddress = typeof userData === 'string' ? userData : userData.account;
+          console.log('35. r-address:', rAddress);
+          updateStatus(`Authenticated! Your r-address: ${rAddress}`);
+          updateEnvInfo(authToken, authTokenDetails, ottData, Object.keys(xumm.user || {}));
+        }).catch(error => {
+          console.log('36. User data fetch failed:', {
+            message: error.message,
+            stack: error.stack
+          });
+          updateStatus(`Error: Failed to fetch user data (${error.message})`, true);
+          updateEnvInfo(authToken, authTokenDetails, ottData, Object.keys(xumm.user || {}));
+        });
+      } catch (error) {
+        console.log('37. SDK account call failed:', {
+          message: error.message,
+          stack: error.stack
+        });
+        updateStatus(`Error: SDK account call failed (${error.message})`, true);
+        updateEnvInfo(authToken, authTokenDetails, ottData, Object.keys(xumm.user || {}));
+      }
+    }
+
+    // Start authentication
+    console.log('38. Starting initial authentication...');
+    authenticateXaman();
   </script>
 </body>
 </html>
